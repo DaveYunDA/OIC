@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
 import {
   Form,
   FormControl,
@@ -285,13 +286,15 @@ export default function Home() {
 
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
+    const user = localStorage.getItem('currentUser');
+    if (!user) {
       router.push('/login');
       return;
     }
     setIsAuthenticated(true);
   }, [router]);
+
+
 
   useEffect(() => {
     // Load draft from localStorage
@@ -374,30 +377,43 @@ export default function Home() {
       description: "Survey submitted successfully",
     });
   };
-
-  const submitSurvey = useCallback(() => {
-    // Validate all answers before submission
-    for (const question of surveyQuestions) {
-      const answer = form.getValues().answers[question.id];
-      if (question.type === 'ranking') {
-        if (!Array.isArray(answer) || answer.length !== question.options?.length) {
-          toast({
-            title: "Error",
-            description: "Please rank all options before submitting.",
-          });
-          return;
-        }
+  
+  const submitSurvey = useCallback(async () => {
+    const userString = localStorage.getItem('currentUser');
+  
+    if (!userString) {
+      toast({
+        title: "Error",
+        description: "User not logged in",
+      });
+      return;
+    }
+  
+    const user = JSON.parse(userString);
+    const answers = form.getValues().answers;
+  
+    // 插入一行：一整份问卷答题记录
+    const { error } = await supabase.from('survey_results').insert([
+      {
+        user_id: user.id,
+        answers: answers,
+        created_at: new Date().toISOString()
       }
+    ]);
+  
+    if (error) {
+      console.error('Failed to save responses:', error);
+      toast({
+        title: "Error",
+        description: "Failed to submit responses. Please try again.",
+      });
+      return;
     }
-
+  
+    // 保存成功，继续执行后续逻辑（跳转 + 清除草稿）
     handleSubmit();
-  }, [handleSubmit, form, surveyQuestions, toast]);
-
-  useEffect(() => {
-    if (submitted) {
-      router.push('/thank-you');
-    }
-  }, [submitted, router]);
+  }, [handleSubmit, form, toast]);
+  
 
   useEffect(() => {
     if (currentQuestion?.type === 'ranking' && currentQuestion.options) {
@@ -442,13 +458,18 @@ export default function Home() {
     }
   }, [currentQuestionIndex, surveyQuestions, form, validateCurrentAnswer]);
 
+ 
+
+  useEffect(() => {
+    if (submitted) {
+      router.push('/thank-you');
+    }
+  }, [submitted, router]); 
+  
   if (!isAuthenticated) {
     return null;
   }
-
-  if (submitted) {
-    router.push('/thank-you');
-  }
+  
 
   if (!currentQuestion) {
     return (

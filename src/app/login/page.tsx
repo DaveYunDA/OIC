@@ -6,6 +6,8 @@ import {Input} from '@/components/ui/input';
 import {Label} from '@/components/ui/label';
 import {useRouter} from 'next/navigation';
 import {useState} from 'react';
+import { supabase } from '@/lib/supabase';
+
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -17,12 +19,25 @@ export default function LoginPage() {
     event.preventDefault();
     setError('');
 
-    if (username === process.env.NEXT_PUBLIC_ADMIN_USERNAME && password === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
-      localStorage.setItem('authToken', 'dummy_token'); // Store a dummy token
-      router.push('/');
-    } else {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('username', username)
+      .eq('password', password) // ⚠️ 暂时使用明文匹配
+      .single();
+
+    if (error || !data) {
       setError('Invalid credentials');
+      return;
     }
+
+    // 登录成功，保存用户信息
+    localStorage.setItem('currentUser', JSON.stringify({
+      id: data.id,
+      username: data.username
+    }));
+
+    router.push('/');
   };
 
   return (
