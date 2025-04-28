@@ -13,19 +13,10 @@ import {
   FormMessage
 } from '@/components/ui/form';
 import { Progress } from '@/components/ui/progress';
-import { GripVertical } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  arrayMove,
-  useSortable,
-
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,249 +32,824 @@ import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Toaster } from '@/components/ui/toaster';
 import { ArrowRight } from 'lucide-react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from "lucide-react";
+import { DragEndEvent } from '@dnd-kit/core';
 
-
-const questionSchema = z.object({
-  id: z.string(),
-  text: z.string(),
-  type: z.enum(['ranking']),
-  options: z.array(z.string()).optional(),
-});
-
-type Question = z.infer<typeof questionSchema>;
-
-const formSchema = z.object({
-  answers: z.record(z.any()),
-});
-
-function arrayShuffle(array: any[]): any[] {
-  let currentIndex = array.length, randomIndex;
-
-  // While there remain elements to shuffle.
-  while (currentIndex !== 0) {
-
-    // Pick a remaining element.
-    randomIndex = Math.floor(Math.random() * currentIndex);
-    currentIndex--;
-
-    // And swap it with the current element.
-    [array[currentIndex], array[randomIndex]] = [
-      array[randomIndex], array[currentIndex]];
-  }
-
-  return array;
+interface Question {
+  id: string;
+  text: string;
+  type: 'radio-with-other' | 'text' | 'ranking' | 'instructions';
+  required: boolean;
+  options?: string[];
+  description?: string;
+  instructionContent?: InstructionContent;
 }
 
-function SortableItem(props: {
-  id: string, option: string, index: number, questionId: string, form: any, ranking: string[]
-}) {
+interface Section {
+  id: string;
+  title: string;
+  questions: Question[];
+}
+
+interface FormValues {
+  answers: Record<string, {
+    value: string;
+    otherValue?: string;
+  }>;
+}
+
+interface InstructionBulletPoint {
+  text: string;
+  description?: string;
+  boldItems?: Array<{
+    text: string;
+    description: string;
+  }>;
+}
+
+interface InstructionContent {
+  mainText: string;
+  boldText: string;
+  continueText: string;
+  timeSection: {
+    text: string;
+    boldTime: string;
+    italicText: string;
+    endText: string;
+  };
+  ideaSection: {
+    text: string;
+    boldWords: string[];
+    endText: string;
+  };
+  bulletPoints: InstructionBulletPoint[];
+  finalNote: {
+    text: string;
+    boldWord: string;
+    continueText: string;
+    boldTime: string;
+    endText: string;
+  };
+}
+
+function Instructions({ content }: { content: InstructionContent }) {
+  return (
+    <div className="space-y-6 text-gray-800">
+      <p className="text-lg">
+        {content.mainText}
+        <span className="font-bold">{content.boldText}</span>
+        {content.continueText}
+      </p>
+      
+      <p>
+        {content.timeSection.text}
+        <span className="font-bold">{content.timeSection.boldTime}</span>
+        <span className="italic">{content.timeSection.italicText}</span>
+        {content.timeSection.endText}
+      </p>
+      
+      <p>
+        {content.ideaSection.text}
+        {content.ideaSection.boldWords.map((word, index) => (
+          <span key={index}>
+            <span className="font-bold">{word}</span>
+            {index < content.ideaSection.boldWords.length - 1 ? ' and ' : ''}
+          </span>
+        ))}
+        {content.ideaSection.endText}
+      </p>
+      
+      <ul className="list-disc pl-6 space-y-2">
+        {content.bulletPoints.map((point, index) => (
+          <li key={index}>
+            {point.boldItems ? (
+              <>
+                {point.text}
+                {point.boldItems.map((item, i) => (
+                  <span key={i}>
+                    <span className="font-bold">{item.text}</span>
+                    {item.description}
+                  </span>
+                ))}
+              </>
+            ) : (
+              point.text
+            )}
+    </li>
+        ))}
+      </ul>
+      
+      <p>
+        {content.finalNote.text}
+        <span className="font-bold">{content.finalNote.boldWord}</span>
+        {content.finalNote.continueText}
+        <span className="font-bold">{content.finalNote.boldTime}</span>
+        {content.finalNote.endText}
+      </p>
+    </div>
+  );
+}
+
+const sections: Section[] = [
+  {
+    id: 'section1',
+    title: 'ABOUT YOU',
+    questions: [
+      {
+        id: 'Q1',
+        text: 'Your first language',
+        type: 'radio-with-other',
+        required: true,
+        options: ['English', 'Spanish', 'Chinese', 'Italian', 'French', 'Other'],
+      },
+      {
+        id: 'Q3',
+        text: 'Your usual country of residence',
+        type: 'radio-with-other',
+        required: true,
+        options: ['China', 'Australia', 'US', 'UK', 'Other'],
+      },
+      {
+        id: 'Q5',
+        text: 'Your age',
+        type: 'radio-with-other',
+        required: true,
+        options: ['13+', '14+', '15+', '16+', '17+', '18+', '19+', 'Other'],
+      },
+      {
+        id: 'Q7',
+        text: 'Which school year are you in?',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Year 9', 'Year 10', 'Year 11', 'Year 12', 'Other'],
+      },
+      {
+        id: 'Q9',
+        text: 'In which country is your school located?',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Australia', 'UK', 'China', 'US', 'Canada', 'Other'],
+      },
+      {
+        id: 'Q11',
+        text: "Your parent's email",
+        type: 'text',
+        required: true,
+      },
+      {
+        id: 'Q12',
+        text: "Your name",
+        type: 'text',
+        required: true,
+      },
+    ],
+  },
+  {
+    id: 'section2',
+    title: 'YOUR VALUES',
+    questions: [
+      {
+        id: 'Q13',
+        text: 'If you won a lot of money on the lottery (assuming you\'re now 18), what would you do first?',
+        description: 'Rank in order from 1 (Most Likely) to 6 (Least Likely).',
+      type: 'ranking',
+        required: true,
+      options: [
+        'Go out and celebrate, celebrate, celebrate!',
+          'Buy that car, big house, and those other luxuries you\'ve always wanted',
+        'Pay off the debts of family & friends and support a charity close to your heart',
+        'Invest it in your education',
+        'Set up your own business',
+          'Get financial advice - invest wisely in a secure savings plan and give some to parents/family for safe-keeping'
+      ],
+    },
+    {
+        id: 'Q14',
+        text: 'Who would you prefer as a dinner guest (living or dead)?',
+        description: 'Rank in order from 1 (Most Prefer) to 6 (Most Avoid).',
+      type: 'ranking',
+        required: true,
+      options: [
+          'A well-known celebrity or social media star',
+        'A president, prime minister, or world leader',
+          'A campaigner for human rights or spiritual/religious leader',
+          'A Nobel prize winning academic or chancellor/professor of a top university',
+          'A rich and successful entrepreneur/businessperson',
+          'A close friend or family member'
+      ],
+    },
+    {
+        id: 'Q15',
+        text: 'What would you prefer to receive from a relative as a gift, assuming a £200 budget?',
+        description: 'Rank in order from 1 (Best Gift) to 6 (Worst).',
+      type: 'ranking',
+        required: true,
+      options: [
+          'A treat of your choice (e.g. meal out, day at a theme park, ticket for a sports event/concert/festival)',
+          'Something you can show off to your friends (e.g. new trainers, watch, designer item)',
+          'A contribution to a fundraiser for a charity of your choice',
+          'A voucher for some books, tutoring or resources to help with your academic studies',
+          'A ticket to a seminar or workshop on how to set up a successful business',
+          'Money for your savings account'
+      ],
+    },
+    {
+        id: 'Q16',
+        text: 'Which of these sayings and quotes is most likely to inspire you?',
+        description: 'Rank in order from 1 (Most Inspiring) to 6 (Least Inspiring).',
+      type: 'ranking',
+        required: true,
+      options: [
+        'Life is short, so have fun and enjoy it to the fullest',
+        'A leader is one who knows the way, goes the way, and shows the way',
+          'Be kind whenever possible. It is always possible',
+          'The great thing about learning and knowledge is that no-one can ever take it away from you',
+          'In order to become rich, you must believe you can do it, and take action to reach your goals',
+          'Always look before you leap - Carefulness costs you nothing, but  carelessness may cost you your life'
+      ],
+    },
+    {
+        id: 'Q17',
+        text: 'Assume you’re around 10 years older, ready to settle down, single but looking for a partner for life – apart from looks/attractiveness, which of the following traits would appeal most? ',
+        description: 'Rank in order from 1 (Most Important) to 6 (Least Important).',
+      type: 'ranking',
+        required: true,
+      options: [
+          'Funny, entertaining, exciting, and with a good sense of humour',
+          'Ambitious, decisive, a natural leader who is driven to be the best',
+          'Kind, caring, tolerant and supportive',
+          'Intelligence – someone intellectually stimulating who can challenge me and who I can learn from',
+          'A wealthy person with a nice house/car etc, but who is also good with money',
+          'Loyal, faithful, honest, organised, and reliable'
+      ],
+    },
+    {
+        id: 'Q18',
+        text: "Imagine you have advanced in life and have made some big achievements. Your school wants to invite you back to give a speech to the students. You are being introduced by your head teacher. How would you like to be described? ",
+        description: "Rank in order from 1 (Closest to you) to 6 (Furthest).",
+      type: 'ranking',
+        required: true,
+      options: [
+          "A fun person who lived life on the edge",
+          "A successful leader who drove themselves to the top",
+          "A caring person who put others first and made a positive difference to those in need",
+          "An inspirational scholar whose research and discoveries led to great progress in their specialist field",
+          "A great businessperson who made it to the rich list",
+          "A trustworthy and reliable person with high integrity. They played by the rules and delivered on their word"
+      ],
+    },
+    {
+        id: 'Q19',
+        text: "The image shows a war memorial defaced.",
+        description: "Rank the feelings from 1 (Most Accurate) to 6 (Least Accurate).",
+      type: 'ranking',
+        required: true,
+      options: [
+          "Funny – I wish I'd done this!",
+          "Disrespectful – this man must have been a great leader who sacrificed a lot; he deserves to be honoured",
+          "Degrading and Cruel – the poor man would be devastated to see this if he were alive today",
+          "Confusing – why has this been vandalised? I’d like to do more research on this",
+          "Wasteful – this is going to cost a lot of money and time to put right",
+          "Stupid and annoying - this statue has been part of the community for a long time, why change it now? Is this legal?"
+      ],
+    },
+    {
+        id: 'Q20',
+        text: "On leaving your school or college, which quote and class vote would you be most pleased to receive?",
+        description: "Rank from 1 (Closest) to 6 (Furthest).",
+      type: 'ranking',
+        required: true,
+      options: [
+          "Cheekiest but funniest class member. Most likely to be an entertainer or media star, or to surprise us all!",
+          "Head pupil and class leader – most likely to be CEO or leader of their chosen profession",
+          "Most supportive, helpful team player and all-round good person. Most likely to make a positive difference to others’ lives",
+          "Top of the class and super brainy – most likely to be professor in their chosen field at a top university",
+          "Whatever you wanted, they found it for you – at a price. Most likely to be a rich and successful entrepreneur or businessperson",
+          "Best attendance and behaviour - loved by all the teachers! Most likely to be a model citizen for the community and a good family person."
+      ],
+    },
+    {
+        id: 'Q21',
+        text: "Imagine you’re a parent of school age children. What key advice would you give them on their first day?",
+        description: "Rank from 1 (Most Likely to say) to 6 (Least Likely).",
+      type: 'ranking',
+        required: true,
+      options: [
+          "The most important thing is to have fun and enjoy it",
+          "Prove that you’re the best – strive for success and you’ll win!",
+          "Always be kind to others and be a friend to everyone.",
+          "Make the most of the learning opportunities and learn all you can.",
+          "Think of this as an investment – the hard work will pay off in the future.",
+          "Make sure you stay out of trouble and always listen to your teachers – they know best."
+      ],
+    },
+    {
+        id: 'Q22',
+        text: "Which comment would you be most pleased to receive by your boss/manager on your performance appraisal when you begin your career.",
+        description: "Rank from 1 (Most Pleased) to 6 (Least Pleased).",
+      type: 'ranking',
+        required: true,
+      options: [
+          "Great fun to work with and sets a positive team spirit",
+          "Very driven and ambitious with leadership qualities",
+          "Kind, supportive team member – popular and always happy to help out",
+          "Super-bright, a good problem solver who picks new information up quickly",
+          "Very commercial, cost-conscious, adds value, brings in income money-maker and with great earning potential",
+          "Reliable and conscientious, delivers on their promises"
+        ],
+      },
+    ],
+  },
+  {
+    id: 'section3',
+    title: 'YOUR INTERESTS',
+    questions: [
+      {
+        id: 'Q23',
+        text: 'When visiting a book shop or library, which section would you prefer to visit?',
+        description: 'Rank in order from 1 (First Choice) to 6 (Last Choice).',
+        type: 'ranking',
+        required: true,
+        options: [
+          'Arts, music, film & literature',
+          'Business, politics & leadership',
+          'Well-being, psychology & self-help',
+          'Nature, geography, sports & the outdoors',
+          'Other non-fiction books, guides & manuals (e.g. revision guides, IT & computing, planning events, etc.)',
+          'Science – either fiction or non-fiction'
+        ],
+      },
+      {
+        id: 'Q24',
+        text: 'Which podcast category are you most likely to tap into?',
+        description: 'Rank in order from 1 (First Choice) to 6 (Last Choice).',
+        type: 'ranking',
+        required: true,
+        options: [
+          'Comedy',
+          'Business & leadership',
+          'Social issues and current affairs',
+          'Sports and outdoor pursuits',
+          'Organisation, productivity and/or managing money',
+          'Science, research & discovery'
+        ],
+      },
+      {
+        id: 'Q25',
+        text: 'If you were asked to design and deliver a workshop, which would you be best qualified for?',
+        description: 'Rank in order from 1 (First Choice) to 6 (Last Choice).',
+        type: 'ranking',
+        required: true,
+        options: [
+          'Something creative – photography, design, or music',
+          'How to persuade and influence people',
+          'Improving interpersonal skills',
+          'An outdoor exercise programme or coaching session for your favourite sport',
+          'Managing your money and time',
+          'Improve problem-solving and analytical skills'
+        ],
+      },
+      {
+        id: 'Q26',
+        text: 'Ideal day out',
+        description: 'Rank in order from 1 (First Choice) to 6 (Last Choice).',
+        type: 'ranking',
+        required: true,
+        options: [
+          'An art gallery, a cinema, the theatre – something entertaining',
+          'I’d love to do a competitive group challenge (e.g. an escape room) where I lead the group to success!',
+          'A party or social gathering with my friends and where I can meet new people',
+          'A wildlife park or trek around a nature reserve',
+          'Anything that is good value for money, booked in advance and well organised (ideally by me!)',
+          'A science or history museum or historical site'
+        ],
+      },
+      {
+        id: 'Q27',
+        text: 'What hobby or skill have you always wanted to try or develop if you had the time?',
+        description: 'Rank in order from 1 (First Choice) to 6 (Last Choice).',
+        type: 'ranking',
+        required: true,
+        options: [
+          'Baking, a new art form, creative writing, a craft, photography or learning a new musical instrument',
+          'Practice my debating and influencing skills or try my hand at public speaking',
+          'Voluntary work or team activity where I can work with and support others',
+          'I’d love to learn a new sport, or try an outdoors activity',
+          'Develop my IT and/or budget management skills (e.g. learn a new software package or financial system)',
+          'Research that niche topic I’ve always been meaning to look into'
+        ],
+      },
+      {
+        id: 'Q28',
+        text: 'What kind of holiday do you most prefer?',
+        description: 'Rank in order from 1 (First Choice) to 6 (Last Choice).',
+        type: 'ranking',
+        required: true,
+        options: [
+          'Nothing too formal - I’m up for a surprise. A relaxed atmosphere where I can do stuff in my own time (e.g. daydream, listen to my music, write, draw etc.) would be ideal!',
+          'A city break where I can explore – the holiday’s not for relaxing - it’s for adventure',
+          'A resort, venue or hotel with social events and activities where I can people watch, mix and make new friends.',
+          'Somewhere outdoors – a rural area where I can hike and do other physical activities',
+          'Somewhere I’ve been before which is safe and guaranteed to be great. Otherwise, I’d plan the whole trip – I need to make sure everything’s set up in advance',
+          'Somewhere new where I can learn about the culture, history and language'
+        ],
+      },
+      {
+        id: 'Q29',
+        text: 'Which group of TV shows are you most likely to watch?',
+        description: 'Rank in order from 1 (First Choice) to 6 (Last Choice).',
+        type: 'ranking',
+        required: true,
+        options: [
+          'A show where I can watch people create things or showcase their talents (e.g. Interior Design Challenge, Young Musician of the Year)',
+          'Business shows where I can watch how the professionals work (e.g. Dragon’s Den, The Apprentice, Start Up)',
+          'A reality or game show where I can watch people solve problems, build relationships and work as a team  (e.g. The Crystal Maze, Big Brother, Traitors, The Mole)',
+          'Wildlife, nature or survival skills documentaries where I can see people work outdoors or with plants and animals (e.g. Blue Planet, Life on Earth, The Farm)',
+          'An investigative programme about consumers rights and illegal activity (e.g. Watchdog, Scam Interceptors, Crimewatch)',
+          'A quiz show where I can test my knowledge (e.g. Mastermind, University Challenge)'
+        ],
+      },
+      {
+        id: 'Q30',
+        text: 'Which type of workplace would you prefer to work in?',
+        description: 'Rank in order from 1 (First Choice) to 6 (Last Choice).',
+        type: 'ranking',
+        required: true,
+        options: [
+          'A workplace that is has a more informal, flexible and less conventional or creative atmosphere - I work best outside of a set structure',
+          'Somewhere that allows me to demonstrate my leadership, selling, and management skills',
+          'A friendly and open environment where I can interact with others and/or work as a team',
+          'A workplace that values technical or practical skills and/or where I can go outside and am not stuck in an office all day',
+          'I need a structured place with clear expectations and standards where I can use my organisational skills',
+          'Somewhere which values analytical skills and intellect which allows me to work independently to research and solve problems.'
+        ],
+      },
+      {
+        id: 'Q31',
+        text: 'Assuming money/income is not a key issue for you, which of the following is closest to your dream career? ',
+        description: 'Rank in order from 1 (First Choice) to 6 (Last Choice).',
+        type: 'ranking',
+        required: true,
+        options: [
+          'Designer or Artist (including actor, musician, writer/author)',
+          'Businessperson, entrepreneur or sales/marketing director',
+          'Healthcare, public sector or charity worker',
+          'Professional sportsperson, armed forces or police officer',
+          'Lawyer, accountant or IT professional',
+          'Researcher in your chosen field'
+        ],
+      },
+      {
+        id: 'Q32_1',
+        text: 'Practicality is more important than how something looks',
+        description: 'Choose one box to tick that you agree with most. Try and avoid the neutral option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q32_2',
+        text: 'I dislike schedules – I prefer being flexible than too organised',
+        description: 'Choose one box to tick that you agree with most. Try and avoid the neutral option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q32_3',
+        text: 'I value my intellect over my interpersonal skills',
+        description: 'Choose one box to tick that you agree with most. Try and avoid the neutral option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q32_4',
+        text: 'I enjoy persuading and influencing people',
+        description: 'Choose one box to tick that you agree with most. Try and avoid the neutral option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q32_5',
+        text: 'I\'m better with people than I am with practical tasks and equipment',
+        description: 'Choose one box to tick that you agree with most. Try and avoid the neutral option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q32_6',
+        text: 'I\'d rather follow instructions than give them',
+        description: 'Choose one box to tick that you agree with most. Try and avoid the neutral option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'],
+      },
+    ],
+  },
+  {
+    id: 'section4',
+    title: 'PERSONALITY & STYLE QUESTIONS',
+    questions: [
+      {
+        id: 'Q33_1',
+        text: 'I like to keep my feelings to myself rather than sharing them with everyone (EI)',
+        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q33_2',
+        text: 'I\'m often the person my friends rely on to organise things (PJ)',
+        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q33_3',
+        text: 'After a busy week, I\'d rather relax by spending time with my friends than on my own (IE)',
+        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q33_4',
+        text: 'I prefer learning about facts and details rather than theories and ideas (NS)',
+        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q33_5',
+        text: 'It\'s important to show kindness and respect for people, even if you don\'t like or understand them (TF)',
+        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q33_6',
+        text: 'I tend to plan and start tasks early rather than leaving them to the last minute (PJ)',
+        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q33_7',
+        text: 'I am more concerned about fairness over people\'s feelings (FT)',
+        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q33_8',
+        text: 'I think it\'s better to be imaginative than practical (SN)',
+        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q33_9',
+        text: 'I find pre-planned events and schedules restricting (JP)',
+        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q33_10',
+        text: 'I prefer to have a close friendship with less people than a broad relationship with many people (EI)',
+        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q33_11',
+        text: 'I dislike it when fiction writers don\'t say exactly what they mean (NS)',
+        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+      },
+      {
+        id: 'Q33_12',
+        text: 'When I have to decide something important, I tend to trust my head rather than follow my heart (FT)',
+        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
+        type: 'radio-with-other',
+        required: true,
+        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+      },
+    ],
+  },
+  {
+    id: 'section5',
+    title: 'LATERAL THINKING',
+    questions: [
+      {
+        id: 'instructions',
+        text: '',
+        description: '',
+        type: 'instructions',
+        required: false,
+        instructionContent: {
+          mainText: 'This is a test of your ability to come up with solutions or ideas to different problem situations. You will be given ',
+          boldText: 'three',
+          continueText: ' situations for which you must generate as many ideas as possible.',
+          timeSection: {
+            text: 'These questions are untimed, but we suggest you spend around ',
+            boldTime: '5 minutes',
+            italicText: ' on each question (6 minutes if you are allowed extra time in your exams – e.g. English not your first language, dyslexia, other neurodiversity issues etc.)',
+            endText: ' but you can stop at any time if you have run out of ideas.'
+          },
+          ideaSection: {
+            text: 'Try to cover as many aspects of each problem or situation as possible, and try and come up with a range of different ideas – they can be as ',
+            boldWords: ['wild', 'weird'],
+            endText: ' as you like!'
+          },
+          bulletPoints: [
+            { text: 'Write each answer on a separate line.' },
+            { text: 'Be as wild, wacky or weird in your answers as you wish!' },
+            {
+              text: 'Work as quickly as you can – your answers will be scored for ',
+              boldItems: [
+                { text: 'Volume', description: ' (number) ' },
+                { text: 'Variety', description: ' (breadth of answers) ' },
+                { text: 'Vision', description: ' (originality)' }
+              ]
+            }
+          ],
+          finalNote: {
+            text: 'Please complete the following ',
+            boldWord: 'example',
+            continueText: ' question for only ',
+            boldTime: '3 minutes',
+            endText: ', which will help get you into the right frame of mind before you complete the real questions.'
+          }
+        }
+      },
+      {
+        id: 'Q34',
+        text: 'Practice Question',
+        description: `There has been a 30% drop in use of the food canteen/restaurant within one of the high schools in your area over the past six months.
+You have been asked to make some suggestions to solve the problem. List as many potential ideas as you can. Remember to come up with a range of different ideas – no matter how silly they seem!`,
+        type: 'text',
+        required: true,
+      },
+      {
+        id: 'Q35',
+        text: 'Please read the following problem',
+        description: `Assume that you have a 13-year-old cousin who is feeling really sad because their school head-teacher (a 40 year old woman) is leaving. She had only started working at the school less than a year ago. Everyone seemed to like her a lot, and she was doing a great job. But now, she's leaving all of a sudden, and nobody knows why - it's a total mystery!`,
+        type: 'text',
+        required: true,
+      },
+      {
+        id: 'Q36',
+        text: 'Please read the following problem',
+        description: 'Due to the increasing popularity of summer music festivals since Covid, last year “Harmony Fest” launched in a brand-new location following this gap in the market. However, many of the attendees complained about how bad it was, and this year, ticket sales are down by 40%. ',
+        type: 'text',
+        required: true,
+      },
+      {
+        id: 'Q37',
+        text: 'Please read the following problem',
+        description: 'One of your relatives owns a chain of successful baker’s shops selling traditional baked goods and sandwiches. The most recent shop they opened has proved to be a disaster. ',
+        type: 'text',
+        required: true,
+      },
+    ],
+  },
+  {
+    id: 'section6',
+    title: 'YOUR STUDY STYLE AND CAREER',
+    questions: [
+      {
+        id: 'Q38',
+        text: 'If you had to choose one assessment method, which would you prefer?',
+        type: 'radio-with-other',
+        required: true,
+        options: [
+          'Write essays',
+          'Take exams',
+          'A combination of both'
+        ],
+      },
+      {
+        id: 'Q39',
+        text: 'What are your most favourite subjects and why?',
+        type: 'text',
+        required: true,
+      },
+      {
+        id: 'Q40',
+        text: 'What are your least favourite subjects and why?',
+        type: 'text',
+        required: true,
+      },
+      {
+        id: 'Q41',
+        text: 'How do you spend your spare/leisure time?',
+        description: 'Do you have anything you found particularly easy or difficult in general?',
+        type: 'text',
+        required: true,
+      },
+      {
+        id: 'Q42',
+        text: 'If money / family circumstances / location were no object, what would be your ideal career?',
+        type: 'text',
+        required: true,
+      },
+      {
+        id: 'Q43',
+        text: 'What are your parental expectations/hopes for your career choice?',
+        type: 'text',
+        required: true,
+      },
+      {
+        id: 'Q44',
+        text: 'What are your parent(s)\' current or previous careers/occupations?',
+        description: 'And has this had any impact on you?',
+        type: 'text',
+        required: true,
+      },
+    ],
+  },
+];
+
+function SortableItem({ id, children, index }: { id: string; children: React.ReactNode; index: number }) {
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
     transition,
-  } = useSortable({
-    id: props.id,
-  });
+  } = useSortable({ id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    zIndex: 10,
   };
 
   return (
-    <li
+    <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      className="flex items-center space-x-2 p-3 bg-muted rounded-md shadow-sm cursor-move"
+      className="flex items-center gap-2 bg-white p-3 rounded-lg shadow-sm cursor-move"
     >
-      <GripVertical className="h-4 w-4 text-muted-foreground" />
-      <span>{props.option}</span>
-    </li>
+      <span className="flex items-center justify-center w-8 h-8 bg-primary text-white rounded-full font-bold">
+        {index + 1}
+      </span>
+      <GripVertical className="h-4 w-4 text-gray-400" />
+      <span className="flex-1">{children}</span>
+    </div>
   );
 }
 
 export default function Home() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [surveyQuestions, setSurveyQuestions] = useState<Question[]>([
-    {
-      id: 'Q1 Lottery win',
-      text:
-        'Lottery win: If you won a lot of money on the lottery (assuming you’re now 18), what would you do first? ' +
-        'Drag the options into your preferred order (top = Most Likely, bottom = Least Likely).',
-      type: 'ranking',
-      options: [
-        'Go out and celebrate, celebrate, celebrate!',
-        'Buy that car, big house, and those other luxuries you’ve always wanted',
-        'Pay off the debts of family & friends and support a charity close to your heart',
-        'Invest it in your education',
-        'Set up your own business',
-        'Get financial advice – invest wisely in a secure savings plan and give some to parents/family for safe‑keeping',
-      ],
-    },
-    {
-      id: 'Q2 Dinner guest',
-      text:
-        'Dinner guest: Who would you prefer as a dinner guest (living or dead) from the list below? ' +
-        'Drag the options into your preferred order (top = Most Prefer, bottom = Most Avoid).',
-      type: 'ranking',
-      options: [
-        'A well‑known celebrity or social media star',
-        'A rich and successful entrepreneur/businessperson',
-        'A campaigner for human rights or spiritual / religious leader',
-        'A president, prime minister, or world leader',
-        'A close friend or family member',
-        'A Nobel prize‑winning academic or chancellor/professor of a top university',
-      ],
-    },
-    {
-      id: 'Q3 Gift from relative',
-      text:
-        'Gift from relative: What would you prefer to receive from a relative as a gift, assuming they have a budget of £200? ' +
-        'Drag the options into your preferred order (top = Best Gift, bottom = Worst).',
-      type: 'ranking',
-      options: [
-        'A contribution to a fundraiser for a charity of your choice',
-        'A voucher for some books, tutoring or resources to help with your academic studies',
-        'A treat of your choice (e.g. meal out, day at a theme park, ticket for a sports event/concert/festival)',
-        'Money for your savings account',
-        'Something you can show off to your friends (e.g. new trainers, watch, designer item)',
-        'A ticket to a seminar or workshop on how to set up a successful business',
-      ],
-    },
-    {
-      id: 'Q4 Inspirational quotes',
-      text:
-        'Inspirational quotes: Which of these sayings and quotes is most likely to inspire you? ' +
-        'Drag the options into your preferred order (top = Most Inspiring, bottom = Least Inspiring).',
-      type: 'ranking',
-      options: [
-        'Always look before you leap - carefulness costs you nothing, but carelessness may cost you your life',
-        'Be kind whenever possible. It is always possible',
-        'The great thing about learning and knowledge is that no-one can ever take it away from you',
-        'Life is short, so have fun and enjoy it to the fullest',
-        'A leader is one who knows the way, goes the way, and shows the way',
-        'In order to become rich, you must believe you can do it, and take action to reach your goals',
-      ],
-    },
-    {
-      id: 'Q5 Dating app',
-      text:
-        'Dating app: Assume you’re around 10 years older, ready to settle down, single but looking for a partner for life - apart from looks/attractiveness, which of the following traits would appeal most? ' +
-        'Drag the options into your preferred order (top = Most Important, bottom = Least Important).',
-      type: 'ranking',
-      options: [
-        'Intelligence - someone intellectually stimulating who can challenge me and who I can learn from',
-        'Funny, entertaining, exciting, and with a good sense of humour',
-        'Ambitious, decisive, a natural leader who is driven to be the best',
-        'Kind, caring, tolerant and supportive',
-        'A wealthy person with a nice house/car etc, but who is also good with money',
-        'Loyal, faithful, honest, organised, and reliable',
-      ],
-    },
-    {
-      id: 'Q6 School speech',
-      text:
-        'School speech: Imagine you have advanced in life and have made some big achievements. Your school wants to invite you back to give a speech to the students. You are being introduced by your head teacher. How would you like to be described? ' +
-        'Drag the options into your preferred order (top = Closest to how you would like to be remembered, bottom = Furthest away).',
-      type: 'ranking',
-      options: [
-        'A fun person who lived life on the edge',
-        'A trustworthy and reliable person with high integrity. They played by the rules and delivered on their word',
-        'A successful leader who drove themselves to the top',
-        'A caring person who put others first and made a positive difference to those in need',
-        'A great businessperson who made it to the rich list',
-        'An inspirational scholar whose research and discoveries led to great progress in their specialist field',
-      ],
-    },
-    {
-      id: 'Q7 Vandalised statue',
-      text:
-        'Vandalised statue: The image shows a war memorial defaced. Answer truthfully - personally, I find this image: ' +
-        'Drag the options into your preferred order (top = Most Accurate description of my feelings, bottom = Least Accurate).',
-      type: 'ranking',
-      options: [
-        'Stupid and annoying - this statue has been part of the community for a long time, why change it now? Is this legal?',
-        'Funny - I wish I’d done this!',
-        'Wasteful - this is going to cost a lot of money and time to put right',
-        'Disrespectful - this man must have been a great leader who sacrificed a lot; he deserves to be honoured',
-        'Degrading and cruel – the poor man would be devastated to see this if he were alive today',
-        'Confusing – why has this been vandalised? I’d like to do more research on this',
-      ],
-    },
-    {
-      id: 'Q8 School yearbook',
-      text:
-        'School yearbook: On leaving your school or college, which quote and class vote would you be most pleased to receive? ' +
-        'Drag the options into your preferred order (top = Closest to how you would like to be seen, bottom = Furthest away).',
-      type: 'ranking',
-      options: [
-        'Most supportive, helpful team player and all-round good person. Most likely to make a positive difference to others’ lives',
-        'Cheekiest but funniest class member. Most likely to be an entertainer or media star, or to surprise us all!',
-        'Best attendance and behaviour - loved by all the teachers! Most likely to be a model citizen for the community and a good family person.',
-        'Head pupil and class leader - most likely to be CEO or leader of their chosen profession',
-        'Top of the class and super brainy – most likely to be professor in their chosen field at a top university',
-        'Whatever you wanted, they found it for you – at a price. Most likely to be a rich and successful entrepreneur or businessperson',
-      ],
-    },
-    {
-      id: 'Q9 Raising children',
-      text:
-        'Raising children: Imagine you’re a parent of school-age children. What key advice would you give them on their first day? ' +
-        'Drag the options into your preferred order (top = Closest to what you’re most likely to ask, bottom = Least likely).',
-      type: 'ranking',
-      options: [
-        'Make the most of the learning opportunities and learn all you can.',
-        'The most important thing is to have fun and enjoy it!',
-        'Prove that you’re the best - strive for success and you’ll win!',
-        'Always be kind to others and be a friend to everyone.',
-        'Make sure you stay out of trouble and always listen to your teachers – they know best.',
-        'Think of this as an investment – the hard work will pay off in the future.',
-      ],
-    },
-    {
-      id: 'Q10 Annual appraisal',
-      text:
-        'Annual appraisal: Which comment would you be most pleased to receive from your boss/manager on your performance appraisal when you begin your career? ' +
-        'Drag the options into your preferred order (top = Most Pleased, bottom = Least Pleased).',
-      type: 'ranking',
-      options: [
-        'Very driven and ambitious with leadership qualities',
-        'Great fun to work with and sets a positive team spirit',
-        'Reliable and conscientious, delivers on their promises',
-        'Super-bright, a good problem solver who picks new information up quickly',
-        'Kind, supportive team member – popular and always happy to help out',
-        'Very commercial, cost‑conscious, adds value, brings in income – money‑maker with great earning potential',
-      ],
-    },
-  ]);
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [submitted, setSubmitted] = useState(false);
-  const [ranking, setRanking] = useState<string[]>([]); // State for the ranking
   const { toast } = useToast();
-  const [isSubmitEnabled, setIsSubmitEnabled] = useState(false);
   const [showNextError, setShowNextError] = useState(false);
-  const [answerSubmitted, setAnswerSubmitted] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, { value: string; otherValue?: string }>>({});
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: undefined, // Let each question handle its own validation
+  const form = useForm<FormValues>({
     defaultValues: {
       answers: {},
     },
   });
 
-  const currentQuestion = surveyQuestions[currentQuestionIndex] ?? {
-    id: '',
-    text: '',
-    type: 'ranking',
-    options: [],
-  };
+  const currentSection = sections[currentSectionIndex];
+  const currentQuestion = currentSection?.questions[currentQuestionIndex];
+  const totalQuestions = sections.reduce((total, section) => total + section.questions.length, 0);
+  const questionsBeforeCurrentSection = sections
+    .slice(0, currentSectionIndex)
+    .reduce((total, section) => total + section.questions.length, 0);
+  const currentQuestionNumber = questionsBeforeCurrentSection + currentQuestionIndex + 1;
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     const user = localStorage.getItem('currentUser');
@@ -294,35 +860,6 @@ export default function Home() {
     setIsAuthenticated(true);
   }, [router]);
 
-
-
-  useEffect(() => {
-    // Load draft from localStorage
-    if (typeof window !== 'undefined') {
-      const savedDraft = localStorage.getItem('surveyDraft');
-      if (savedDraft) {
-        try {
-          const parsedDraft = JSON.parse(savedDraft);
-          form.reset({ answers: parsedDraft });
-        } catch (e) {
-          console.error('Failed to parse survey draft:', e);
-        }
-      }
-
-      const submittedStatus = localStorage.getItem('submitted');
-      if (submittedStatus === 'true') {
-        setSubmitted(true);
-      }
-    }
-  }, [form, router]);
-
-  useEffect(() => {
-    // Save draft to localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('surveyDraft', JSON.stringify(form.getValues().answers));
-    }
-  }, [form.watch('answers')]);
-
   const handleLogout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('surveyDraft');
@@ -331,19 +868,55 @@ export default function Home() {
     router.push('/login');
   };
 
-  const validateCurrentAnswer = () => {
-    if (!currentQuestion || !currentQuestion.id) {
-      return true; // Skip validation if there's no question or question ID
+  // 每次问题改变时重置表单状态
+  useEffect(() => {
+    if (currentQuestion) {
+      form.reset({ answers: {} });
+      // 如果这个问题已经有答案了，就显示答案
+      if (answers[currentQuestion.id]) {
+        form.setValue(`answers.${currentQuestion.id}`, answers[currentQuestion.id]);
+      }
     }
+  }, [currentQuestionIndex, currentSectionIndex, currentQuestion?.id]);
 
-    const currentAnswer = form.getValues().answers[currentQuestion.id];
-    let isValid = true;
+  const handleAnswerChange = (questionId: string, value: string, otherValue?: string) => {
+    const newAnswer = { value, otherValue };
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: newAnswer
+    }));
+    form.setValue(`answers.${questionId}`, newAnswer);
+  };
+
+  const validateCurrentAnswer = () => {
+    if (!currentQuestion) return true;
+    
+    const currentAnswer = answers[currentQuestion.id];
+    
+    if (currentQuestion.type === 'text') {
+      return !currentQuestion.required || (currentAnswer?.value || '').trim() !== '';
+    }
+    
+    if (currentQuestion.type === 'radio-with-other') {
+      if (!currentAnswer?.value) return !currentQuestion.required;
+      if (currentAnswer.value === 'Other') {
+        return (currentAnswer.otherValue || '').trim() !== '';
+      }
+      return true;
+    }
 
     if (currentQuestion.type === 'ranking') {
-      isValid = Array.isArray(currentAnswer) && currentAnswer.length === currentQuestion.options?.length;
+      if (!currentQuestion.required) return true;
+      if (!currentAnswer?.value) return false;
+      try {
+        const parsedValue = JSON.parse(currentAnswer.value);
+        return Array.isArray(parsedValue) && parsedValue.length === currentQuestion.options?.length;
+      } catch {
+        return false;
+      }
     }
-
-    return isValid;
+    
+    return true;
   };
 
   const goToNextQuestion = () => {
@@ -351,21 +924,30 @@ export default function Home() {
       setShowNextError(true);
       toast({
         title: "Error",
-        description: "Please rank all options before proceeding.",
+        description: currentQuestion.type === 'radio-with-other' && answers[currentQuestion.id]?.value === 'Other' 
+          ? "Please specify your answer"
+          : "This question is required.",
       });
       return;
     }
 
-    setAnswerSubmitted(true);
     setShowNextError(false);
-    setCurrentQuestionIndex((prevIndex) => Math.min(prevIndex + 1, surveyQuestions.length - 1));
+    
+    if (currentQuestionIndex < currentSection.questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    } else if (currentSectionIndex < sections.length - 1) {
+      setCurrentSectionIndex(currentSectionIndex + 1);
+      setCurrentQuestionIndex(0);
+    }
   };
 
-
   const goToPreviousQuestion = () => {
-    setAnswerSubmitted(true);
-    setShowNextError(false);
-    setCurrentQuestionIndex((prevIndex) => Math.max(prevIndex - 1, 0));
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(currentQuestionIndex - 1);
+    } else if (currentSectionIndex > 0) {
+      setCurrentSectionIndex(currentSectionIndex - 1);
+      setCurrentQuestionIndex(sections[currentSectionIndex - 1].questions.length - 1);
+    }
   };
 
   const handleSubmit = () => {
@@ -390,9 +972,7 @@ export default function Home() {
     }
   
     const user = JSON.parse(userString);
-    const answers = form.getValues().answers;
   
-    // 插入一行：一整份问卷答题记录
     const { error } = await supabase.from('survey_results').insert([
       {
         user_id: user.id,
@@ -410,55 +990,8 @@ export default function Home() {
       return;
     }
   
-    // 保存成功，继续执行后续逻辑（跳转 + 清除草稿）
     handleSubmit();
-  }, [handleSubmit, form, toast]);
-  
-
-  useEffect(() => {
-    if (currentQuestion?.type === 'ranking' && currentQuestion.options) {
-      // Initialize ranking with shuffled options only once when the question loads
-      const shuffledOptions = arrayShuffle([...currentQuestion.options]);
-      setRanking(shuffledOptions);
-      form.setValue(`answers.${currentQuestion?.id}`, shuffledOptions, {
-        shouldValidate: true,
-        shouldDirty: true,
-      });
-
-    }
-  }, [currentQuestion, form]);
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (!over) {
-      return;
-    }
-
-    if (active.id !== over.id) {
-      const oldIndex = ranking.indexOf(active.id as string);
-      const newIndex = ranking.indexOf(over.id as string);
-
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const updatedRanking = arrayMove(ranking, oldIndex, newIndex);
-        setRanking([...updatedRanking]);
-        form.setValue(`answers.${currentQuestion?.id}`, updatedRanking, { shouldValidate: true, shouldDirty: true });
-      }
-    }
-  };
-
-  useEffect(() => {
-    const isAnswered = validateCurrentAnswer();
-    setAnswerSubmitted(isAnswered);
-
-    if (currentQuestionIndex === surveyQuestions.length - 1 && isAnswered) {
-      setIsSubmitEnabled(true);
-    } else {
-      setIsSubmitEnabled(false);
-    }
-  }, [currentQuestionIndex, surveyQuestions, form, validateCurrentAnswer]);
-
- 
+  }, [answers, toast]);
 
   useEffect(() => {
     if (submitted) {
@@ -466,23 +999,40 @@ export default function Home() {
     }
   }, [submitted, router]); 
   
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !currentQuestion) {
     return null;
   }
   
+  const progress = (currentQuestionNumber / totalQuestions) * 100;
 
-  if (!currentQuestion) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen">
-        <h1 className="text-2xl font-bold mb-4">No survey questions available.</h1>
-        <Button onClick={handleLogout} variant="outline">
-          Logout
-        </Button>
-      </div>
-    );
-  }
+  const shouldShowQuestion = (question: any) => {
+    if (!question.dependsOn) return true;
+    
+    const dependentAnswer = form.getValues().answers[question.dependsOn.questionId];
+    return dependentAnswer === question.dependsOn.value;
+  };
 
-  const progress = ((currentQuestionIndex + 1) / surveyQuestions.length) * 100;
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const currentOptions = JSON.parse(answers[currentQuestion.id]?.value || JSON.stringify(currentQuestion.options || []));
+      const oldIndex = currentOptions.findIndex(
+        (option: string) => option === active.id
+      );
+      const newIndex = currentOptions.findIndex(
+        (option: string) => option === over.id
+      );
+
+      const newOptions = arrayMove(currentOptions, oldIndex, newIndex);
+      setAnswers((prev) => ({
+        ...prev,
+        [currentQuestion.id]: {
+          value: JSON.stringify(newOptions),
+        },
+      }));
+    }
+  };
 
   return (
     <>
@@ -490,49 +1040,111 @@ export default function Home() {
       <div className="flex flex-col min-h-screen bg-gradient-to-br from-secondary to-gray-200 p-4">
         <div className="container max-w-3xl mx-auto mt-8 backdrop-blur-sm bg-white/30 rounded-3xl shadow-lg">
           <h1 className="text-3xl font-extrabold text-primary text-center mb-6 pt-4">
-            SurveySwift
+            SECTION {currentSectionIndex + 1} - {currentSection.title}
           </h1>
           <Progress value={progress} className="mb-4" />
           <Card className="w-full bg-white/70 shadow-md backdrop-blur-sm border border-gray-300">
             <CardHeader className="bg-gray-100/80 rounded-t-md">
+              {currentQuestion.type !== 'instructions' && (
               <CardTitle className="text-xl font-semibold text-gray-800">
-                Question {currentQuestionIndex + 1} of {surveyQuestions.length}
-              </CardTitle>
-              <CardDescription className="text-md text-gray-600">
                 {currentQuestion.text}
+                </CardTitle>
+              )}
+              {currentQuestion.type !== 'instructions' && currentQuestion.description && (
+                <CardDescription className="mt-2 text-gray-600">
+                  {currentQuestion.description}
               </CardDescription>
+              )}
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-6">
               <Form {...form}>
-                <form className="space-y-8">
-                  <div className="rounded-lg bg-white/50 p-6">
+                <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                  <FormField
+                    control={form.control}
+                    name={`answers.${currentQuestion.id}`}
+                    render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        {currentQuestion.type === 'ranking' && currentQuestion.options && (
-                          <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                          {currentQuestion.type === 'instructions' ? (
+                            <Instructions content={currentQuestion.instructionContent!} />
+                          ) : currentQuestion.type === 'ranking' ? (
+                            <DndContext
+                              sensors={sensors}
+                              collisionDetection={closestCenter}
+                              onDragEnd={handleDragEnd}
+                            >
+                              <div className="space-y-2">
                             <SortableContext
-                              items={ranking}
+                                  items={JSON.parse(answers[currentQuestion.id]?.value || JSON.stringify(currentQuestion.options || []))}
                               strategy={verticalListSortingStrategy}
                             >
-                              <ul className="space-y-3">
-                                {ranking.map((option: any, index: number) => (
-                                  <SortableItem key={option} id={option} option={option} index={index} questionId={currentQuestion?.id} form={form} ranking={ranking} />
-                                ))}
-                              </ul>
+                                  {JSON.parse(answers[currentQuestion.id]?.value || JSON.stringify(currentQuestion.options || [])).map((option: string, index: number) => (
+                                    <SortableItem key={option} id={option} index={index}>
+                                      {option}
+                                    </SortableItem>
+                                  ))}
                             </SortableContext>
+                              </div>
                           </DndContext>
+                          ) : currentQuestion.type === 'radio-with-other' ? (
+                            <div className="space-y-4">
+                              <RadioGroup
+                                onValueChange={(value) => {
+                                  handleAnswerChange(
+                                    currentQuestion.id,
+                                    value,
+                                    value === 'Other' ? '' : undefined
+                                  );
+                                }}
+                                value={answers[currentQuestion.id]?.value || ''}
+                                className="space-y-2"
+                              >
+                                {currentQuestion.options?.map((option) => (
+                                  <div key={option} className="flex items-center space-x-2">
+                                    <RadioGroupItem value={option} id={`${currentQuestion.id}-${option}`} />
+                                    <label 
+                                      htmlFor={`${currentQuestion.id}-${option}`}
+                                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                    >
+                                      {option}
+                                    </label>
+                                  </div>
+                                ))}
+                              </RadioGroup>
+                              {answers[currentQuestion.id]?.value === 'Other' && (
+                                <Input
+                                  value={answers[currentQuestion.id]?.otherValue || ''}
+                                  onChange={(e) => {
+                                    handleAnswerChange(
+                                      currentQuestion.id,
+                                      'Other',
+                                      e.target.value
+                                    );
+                                  }}
+                                  placeholder="Please specify"
+                                  className="mt-2"
+                                />
+                              )}
+                            </div>
+                          ) : (
+                            <Input
+                              value={answers[currentQuestion.id]?.value || ''}
+                              onChange={(e) => {
+                                handleAnswerChange(
+                                  currentQuestion.id,
+                                  e.target.value
+                                );
+                              }}
+                              type="text"
+                              placeholder="Enter your answer"
+                              className="w-full"
+                            />
                         )}
                       </FormControl>
                       <FormMessage />
-
                     </FormItem>
-                    <FormItem>
-                      <FormControl>
-
-
-                      </FormControl>
-                    </FormItem>
-                  </div>
+                    )}
+                  />
                 </form>
               </Form>
             </CardContent>
@@ -542,19 +1154,18 @@ export default function Home() {
             <Button
               type="button"
               variant="secondary"
-              className="bg-gray-500 hover:bg-gray-700 text-white"
               onClick={goToPreviousQuestion}
-              disabled={currentQuestionIndex === 0}
+              disabled={currentSectionIndex === 0 && currentQuestionIndex === 0}
+              className="bg-gray-500 hover:bg-gray-700 text-white"
             >
               Previous
-
             </Button>
-            {currentQuestionIndex === surveyQuestions.length - 1 ? (
+            {currentSectionIndex === sections.length - 1 && 
+             currentQuestionIndex === sections[sections.length - 1].questions.length - 1 ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
                     type="button"
-                    disabled={!isSubmitEnabled}
                     className="bg-primary hover:bg-teal-700 text-white font-bold"
                   >
                     Submit
@@ -568,12 +1179,12 @@ export default function Home() {
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel className="text-gray-700 hover:bg-gray-200 focus:ring-2 focus:ring-gray-300">
+                    <AlertDialogCancel className="text-gray-700 hover:bg-gray-200">
                       Cancel
                     </AlertDialogCancel>
                     <AlertDialogAction
                       onClick={submitSurvey}
-                      className="bg-primary hover:bg-teal-700 text-white font-bold focus:ring-2 focus:ring-teal-300"
+                      className="bg-primary hover:bg-teal-700 text-white font-bold"
                     >
                       Submit
                     </AlertDialogAction>
@@ -584,16 +1195,11 @@ export default function Home() {
               <Button
                 type="button"
                 onClick={goToNextQuestion}
-                className={cn(
-                  'bg-primary hover:bg-teal-700 text-white font-bold',
-                  !answerSubmitted && 'opacity-50 cursor-not-allowed'
-                )}
-                disabled={!answerSubmitted}
+                className="bg-primary hover:bg-teal-700 text-white font-bold"
+                disabled={!validateCurrentAnswer()}
               >
                 Next <ArrowRight className="ml-2" />
               </Button>
-
-
             )}
           </div>
           <Button onClick={handleLogout} variant="outline" className="mt-4">

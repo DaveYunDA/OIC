@@ -37,7 +37,7 @@ export default function LoginPage() {
       username: data.username
     }));
 
-    router.push('/');
+    router.push('/instructions');
   };
 
   return (
@@ -45,7 +45,7 @@ export default function LoginPage() {
       <Card className="w-[450px]">
         <CardHeader>
           <CardTitle>Login</CardTitle>
-          <CardDescription>Enter your username and password to access SurveySwift</CardDescription>
+          <CardDescription>Enter your username and password to access Survey</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           <form onSubmit={handleSubmit}>
@@ -68,7 +68,6 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
-                type="password"
                 required
               />
             </div>
