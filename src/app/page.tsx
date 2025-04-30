@@ -38,13 +38,14 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from "lucide-react";
 import { DragEndEvent } from '@dnd-kit/core';
+import { calculateScores } from '@/lib/scoring';
 
 interface Question {
   id: string;
   text: string;
-  type: 'radio-with-other' | 'text' | 'ranking' | 'instructions';
+  type: "radio-with-other" | "text" | "ranking" | "instructions";
   required: boolean;
-  options?: string[];
+  options?: Array<string | { text: string; tag: string }>;
   description?: string;
   instructionContent?: InstructionContent;
 }
@@ -216,150 +217,150 @@ const sections: Section[] = [
         id: 'Q13',
         text: 'If you won a lot of money on the lottery (assuming you\'re now 18), what would you do first?',
         description: 'Rank in order from 1 (Most Likely) to 6 (Least Likely).',
-      type: 'ranking',
+        type: 'ranking',
         required: true,
-      options: [
-        'Go out and celebrate, celebrate, celebrate!',
-          'Buy that car, big house, and those other luxuries you\'ve always wanted',
-        'Pay off the debts of family & friends and support a charity close to your heart',
-        'Invest it in your education',
-        'Set up your own business',
-          'Get financial advice - invest wisely in a secure savings plan and give some to parents/family for safe-keeping'
-      ],
-    },
-    {
+        options: [
+          { text: 'Go out and celebrate, celebrate, celebrate!', tag: 'H' },
+          { text: 'Buy that car, big house, and those other luxuries you\'ve always wanted', tag: 'P' },
+          { text: 'Pay off the debts of family & friends and support a charity close to your heart', tag: 'A' },
+          { text: 'Invest it in your education', tag: 'L' },
+          { text: 'Set up your own business', tag: 'F' },
+          { text: 'Get financial advice - invest wisely in a secure savings plan and give some to parents/family for safe-keeping', tag: 'S' }
+        ],
+      },
+      {
         id: 'Q14',
         text: 'Who would you prefer as a dinner guest (living or dead)?',
         description: 'Rank in order from 1 (Most Prefer) to 6 (Most Avoid).',
-      type: 'ranking',
+        type: 'ranking',
         required: true,
-      options: [
-          'A well-known celebrity or social media star',
-        'A president, prime minister, or world leader',
-          'A campaigner for human rights or spiritual/religious leader',
-          'A Nobel prize winning academic or chancellor/professor of a top university',
-          'A rich and successful entrepreneur/businessperson',
-          'A close friend or family member'
-      ],
-    },
-    {
+        options: [
+          { text: 'A well-known celebrity or social media star', tag: 'H' },
+          { text: 'A president, prime minister, or world leader', tag: 'L' },
+          { text: 'A campaigner for human rights or spiritual/religious leader', tag: 'A' },
+          { text: 'A Nobel prize winning academic or chancellor/professor of a top university', tag: 'S' },
+          { text: 'A rich and successful entrepreneur/businessperson', tag: 'P' },
+          { text: 'A close friend or family member', tag: 'F' }
+        ],
+      },
+      {
         id: 'Q15',
         text: 'What would you prefer to receive from a relative as a gift, assuming a £200 budget?',
         description: 'Rank in order from 1 (Best Gift) to 6 (Worst).',
-      type: 'ranking',
+        type: 'ranking',
         required: true,
-      options: [
-          'A treat of your choice (e.g. meal out, day at a theme park, ticket for a sports event/concert/festival)',
-          'Something you can show off to your friends (e.g. new trainers, watch, designer item)',
-          'A contribution to a fundraiser for a charity of your choice',
-          'A voucher for some books, tutoring or resources to help with your academic studies',
-          'A ticket to a seminar or workshop on how to set up a successful business',
-          'Money for your savings account'
-      ],
-    },
-    {
+        options: [
+          { text: 'A treat of your choice (e.g. meal out, day at a theme park, ticket for a sports event/concert/festival)', tag: 'H' },
+          { text: 'Something you can show off to your friends (e.g. new trainers, watch, designer item)', tag: 'P' },
+          { text: 'A contribution to a fundraiser for a charity of your choice', tag: 'A' },
+          { text: 'A voucher for some books, tutoring or resources to help with your academic studies', tag: 'S' },
+          { text: 'A ticket to a seminar or workshop on how to set up a successful business', tag: 'L' },
+          { text: 'Money for your savings account', tag: 'F' }
+        ],
+      },
+      {
         id: 'Q16',
         text: 'Which of these sayings and quotes is most likely to inspire you?',
         description: 'Rank in order from 1 (Most Inspiring) to 6 (Least Inspiring).',
-      type: 'ranking',
+        type: 'ranking',
         required: true,
-      options: [
-        'Life is short, so have fun and enjoy it to the fullest',
-        'A leader is one who knows the way, goes the way, and shows the way',
-          'Be kind whenever possible. It is always possible',
-          'The great thing about learning and knowledge is that no-one can ever take it away from you',
-          'In order to become rich, you must believe you can do it, and take action to reach your goals',
-          'Always look before you leap - Carefulness costs you nothing, but  carelessness may cost you your life'
-      ],
-    },
-    {
+        options: [
+          { text: 'Life is short, so have fun and enjoy it to the fullest', tag: 'H' },
+          { text: 'A leader is one who knows the way, goes the way, and shows the way', tag: 'L' },
+          { text: 'Be kind whenever possible. It is always possible', tag: 'A' },
+          { text: 'The great thing about learning and knowledge is that no-one can ever take it away from you', tag: 'S' },
+          { text: 'In order to become rich, you must believe you can do it, and take action to reach your goals', tag: 'P' },
+          { text: 'Always look before you leap - Carefulness costs you nothing, but carelessness may cost you your life', tag: 'F' }
+        ],
+      },
+      {
         id: 'Q17',
-        text: 'Assume you’re around 10 years older, ready to settle down, single but looking for a partner for life – apart from looks/attractiveness, which of the following traits would appeal most? ',
-        description: 'Rank in order from 1 (Most Important) to 6 (Least Important).',
-      type: 'ranking',
+        text: "Assume you're around 10 years older, ready to settle down, single but looking for a partner for life – apart from looks/attractiveness, which of the following traits would appeal most?",
+        description: "Rank in order from 1 (Most Important) to 6 (Least Important).",
+        type: "ranking",
         required: true,
-      options: [
-          'Funny, entertaining, exciting, and with a good sense of humour',
-          'Ambitious, decisive, a natural leader who is driven to be the best',
-          'Kind, caring, tolerant and supportive',
-          'Intelligence – someone intellectually stimulating who can challenge me and who I can learn from',
-          'A wealthy person with a nice house/car etc, but who is also good with money',
-          'Loyal, faithful, honest, organised, and reliable'
-      ],
-    },
-    {
+        options: [
+          { text: "Funny, entertaining, exciting, and with a good sense of humour", tag: "H" },
+          { text: "Ambitious, decisive, a natural leader who is driven to be the best", tag: "L" },
+          { text: "Kind, caring, tolerant and supportive", tag: "F" },
+          { text: "Intelligence – someone intellectually stimulating who can challenge me and who I can learn from", tag: "A" },
+          { text: "A wealthy person with a nice house/car etc, but who is also good with money", tag: "P" },
+          { text: "Loyal, faithful, honest, organised, and reliable", tag: "S" }
+        ],
+      },
+      {
         id: 'Q18',
         text: "Imagine you have advanced in life and have made some big achievements. Your school wants to invite you back to give a speech to the students. You are being introduced by your head teacher. How would you like to be described? ",
         description: "Rank in order from 1 (Closest to you) to 6 (Furthest).",
-      type: 'ranking',
+        type: 'ranking',
         required: true,
-      options: [
-          "A fun person who lived life on the edge",
-          "A successful leader who drove themselves to the top",
-          "A caring person who put others first and made a positive difference to those in need",
-          "An inspirational scholar whose research and discoveries led to great progress in their specialist field",
-          "A great businessperson who made it to the rich list",
-          "A trustworthy and reliable person with high integrity. They played by the rules and delivered on their word"
-      ],
-    },
-    {
+        options: [
+          { text: "A fun person who lived life on the edge", tag: 'H' },
+          { text: "A successful leader who drove themselves to the top", tag: 'L' },
+          { text: "A caring person who put others first and made a positive difference to those in need", tag: 'A' },
+          { text: "An inspirational scholar whose research and discoveries led to great progress in their specialist field", tag: 'S' },
+          { text: "A great businessperson who made it to the rich list", tag: 'P' },
+          { text: "A trustworthy and reliable person with high integrity. They played by the rules and delivered on their word", tag: 'F' }
+        ],
+      },
+      {
         id: 'Q19',
-        text: "The image shows a war memorial defaced.",
-        description: "Rank the feelings from 1 (Most Accurate) to 6 (Least Accurate).",
-      type: 'ranking',
+        text: "The image shows a war memorial defaced",
+        description: "Rank the feelings from 1 (Most Accurate) to 6 (Least Accurate)",
+        type: "ranking",
         required: true,
-      options: [
-          "Funny – I wish I'd done this!",
-          "Disrespectful – this man must have been a great leader who sacrificed a lot; he deserves to be honoured",
-          "Degrading and Cruel – the poor man would be devastated to see this if he were alive today",
-          "Confusing – why has this been vandalised? I’d like to do more research on this",
-          "Wasteful – this is going to cost a lot of money and time to put right",
-          "Stupid and annoying - this statue has been part of the community for a long time, why change it now? Is this legal?"
-      ],
-    },
-    {
+        options: [
+          { text: "Funny – I wish I'd done this!", tag: "H" },
+          { text: "Disrespectful – this man must have been a great leader who sacrificed a lot; he deserves to be honoured", tag: "L" },
+          { text: "Degrading and Cruel – the poor man would be devastated to see this if he were alive today", tag: "F" },
+          { text: "Confusing – why has this been vandalised? I'd like to do more research on this", tag: "S" },
+          { text: "Wasteful – this is going to cost a lot of money and time to put right", tag: "P" },
+          { text: "Stupid and annoying - this statue has been part of the community for a long time, why change it now? Is this legal?", tag: "A" }
+        ],
+      },
+      {
         id: 'Q20',
         text: "On leaving your school or college, which quote and class vote would you be most pleased to receive?",
         description: "Rank from 1 (Closest) to 6 (Furthest).",
-      type: 'ranking',
+        type: 'ranking',
         required: true,
-      options: [
-          "Cheekiest but funniest class member. Most likely to be an entertainer or media star, or to surprise us all!",
-          "Head pupil and class leader – most likely to be CEO or leader of their chosen profession",
-          "Most supportive, helpful team player and all-round good person. Most likely to make a positive difference to others’ lives",
-          "Top of the class and super brainy – most likely to be professor in their chosen field at a top university",
-          "Whatever you wanted, they found it for you – at a price. Most likely to be a rich and successful entrepreneur or businessperson",
-          "Best attendance and behaviour - loved by all the teachers! Most likely to be a model citizen for the community and a good family person."
-      ],
-    },
-    {
+        options: [
+          { text: "Cheekiest but funniest class member. Most likely to be an entertainer or media star, or to surprise us all!", tag: 'H' },
+          { text: "Head pupil and class leader – most likely to be CEO or leader of their chosen profession", tag: 'L' },
+          { text: "Most supportive, helpful team player and all-round good person. Most likely to make a positive difference to others' lives", tag: 'A' },
+          { text: "Top of the class and super brainy – most likely to be professor in their chosen field at a top university", tag: 'S' },
+          { text: "Whatever you wanted, they found it for you – at a price. Most likely to be a rich and successful entrepreneur or businessperson", tag: 'P' },
+          { text: "Best attendance and behaviour - loved by all the teachers! Most likely to be a model citizen for the community and a good family person.", tag: 'F' }
+        ],
+      },
+      {
         id: 'Q21',
-        text: "Imagine you’re a parent of school age children. What key advice would you give them on their first day?",
+        text: "Imagine you're a parent of school age children. What key advice would you give them on their first day?",
         description: "Rank from 1 (Most Likely to say) to 6 (Least Likely).",
-      type: 'ranking',
+        type: 'ranking',
         required: true,
-      options: [
-          "The most important thing is to have fun and enjoy it",
-          "Prove that you’re the best – strive for success and you’ll win!",
-          "Always be kind to others and be a friend to everyone.",
-          "Make the most of the learning opportunities and learn all you can.",
-          "Think of this as an investment – the hard work will pay off in the future.",
-          "Make sure you stay out of trouble and always listen to your teachers – they know best."
-      ],
-    },
-    {
+        options: [
+          { text: "The most important thing is to have fun and enjoy it", tag: 'H' },
+          { text: "Prove that you're the best – strive for success and you'll win!", tag: 'L' },
+          { text: "Always be kind to others and be a friend to everyone.", tag: 'A' },
+          { text: "Make the most of the learning opportunities and learn all you can.", tag: 'S' },
+          { text: "Think of this as an investment – the hard work will pay off in the future.", tag: 'P' },
+          { text: "Make sure you stay out of trouble and always listen to your teachers – they know best.", tag: 'F' }
+        ],
+      },
+      {
         id: 'Q22',
         text: "Which comment would you be most pleased to receive by your boss/manager on your performance appraisal when you begin your career.",
         description: "Rank from 1 (Most Pleased) to 6 (Least Pleased).",
-      type: 'ranking',
+        type: 'ranking',
         required: true,
-      options: [
-          "Great fun to work with and sets a positive team spirit",
-          "Very driven and ambitious with leadership qualities",
-          "Kind, supportive team member – popular and always happy to help out",
-          "Super-bright, a good problem solver who picks new information up quickly",
-          "Very commercial, cost-conscious, adds value, brings in income money-maker and with great earning potential",
-          "Reliable and conscientious, delivers on their promises"
+        options: [
+          { text: "Great fun to work with and sets a positive team spirit", tag: 'H' },
+          { text: "A natural leader who drives the team forward", tag: 'L' },
+          { text: "Kind, supportive team member – popular and always happy to help out", tag: 'A' },
+          { text: "Super-bright, a good problem solver who picks new information up quickly", tag: 'S' },
+          { text: "Very commercial, cost-conscious, adds value, brings in income money-maker and with great earning potential", tag: 'P' },
+          { text: "Reliable and conscientious, delivers on their promises", tag: 'F' }
         ],
       },
     ],
@@ -375,12 +376,12 @@ const sections: Section[] = [
         type: 'ranking',
         required: true,
         options: [
-          'Arts, music, film & literature',
-          'Business, politics & leadership',
-          'Well-being, psychology & self-help',
-          'Nature, geography, sports & the outdoors',
-          'Other non-fiction books, guides & manuals (e.g. revision guides, IT & computing, planning events, etc.)',
-          'Science – either fiction or non-fiction'
+          { text: 'Arts, music, film & literature', tag: 'H' },
+          { text: 'Business, politics & leadership', tag: 'L' },
+          { text: 'Well-being, psychology & self-help', tag: 'A' },
+          { text: 'Nature, geography, sports & the outdoors', tag: 'F' },
+          { text: 'Other non-fiction books, guides & manuals (e.g. revision guides, IT & computing, planning events, etc.)', tag: 'P' },
+          { text: 'Science – either fiction or non-fiction', tag: 'S' }
         ],
       },
       {
@@ -390,12 +391,12 @@ const sections: Section[] = [
         type: 'ranking',
         required: true,
         options: [
-          'Comedy',
-          'Business & leadership',
-          'Social issues and current affairs',
-          'Sports and outdoor pursuits',
-          'Organisation, productivity and/or managing money',
-          'Science, research & discovery'
+          { text: 'Comedy', tag: 'H' },
+          { text: 'Business & leadership', tag: 'L' },
+          { text: 'Social issues and current affairs', tag: 'A' },
+          { text: 'Sports and outdoor pursuits', tag: 'F' },
+          { text: 'Organisation, productivity and/or managing money', tag: 'P' },
+          { text: 'Science, research & discovery', tag: 'S' }
         ],
       },
       {
@@ -405,12 +406,12 @@ const sections: Section[] = [
         type: 'ranking',
         required: true,
         options: [
-          'Something creative – photography, design, or music',
-          'How to persuade and influence people',
-          'Improving interpersonal skills',
-          'An outdoor exercise programme or coaching session for your favourite sport',
-          'Managing your money and time',
-          'Improve problem-solving and analytical skills'
+          { text: 'Something creative – photography, design, or music', tag: 'H' },
+          { text: 'How to persuade and influence people', tag: 'L' },
+          { text: 'Improving interpersonal skills', tag: 'A' },
+          { text: 'An outdoor exercise programme or coaching session for your favourite sport', tag: 'F' },
+          { text: 'Managing your money and time', tag: 'P' },
+          { text: 'Improve problem-solving and analytical skills', tag: 'S' }
         ],
       },
       {
@@ -420,12 +421,12 @@ const sections: Section[] = [
         type: 'ranking',
         required: true,
         options: [
-          'An art gallery, a cinema, the theatre – something entertaining',
-          'I’d love to do a competitive group challenge (e.g. an escape room) where I lead the group to success!',
-          'A party or social gathering with my friends and where I can meet new people',
-          'A wildlife park or trek around a nature reserve',
-          'Anything that is good value for money, booked in advance and well organised (ideally by me!)',
-          'A science or history museum or historical site'
+          { text: 'An art gallery, a cinema, the theatre – something entertaining', tag: 'H' },
+          { text: 'I\'d love to do a competitive group challenge (e.g. an escape room) where I lead the group to success!', tag: 'L' },
+          { text: 'A party or social gathering with my friends and where I can meet new people', tag: 'A' },
+          { text: 'A wildlife park or trek around a nature reserve', tag: 'F' },
+          { text: 'Anything that is good value for money, booked in advance and well organised (ideally by me!)', tag: 'P' },
+          { text: 'A science or history museum or historical site', tag: 'S' }
         ],
       },
       {
@@ -435,12 +436,12 @@ const sections: Section[] = [
         type: 'ranking',
         required: true,
         options: [
-          'Baking, a new art form, creative writing, a craft, photography or learning a new musical instrument',
-          'Practice my debating and influencing skills or try my hand at public speaking',
-          'Voluntary work or team activity where I can work with and support others',
-          'I’d love to learn a new sport, or try an outdoors activity',
-          'Develop my IT and/or budget management skills (e.g. learn a new software package or financial system)',
-          'Research that niche topic I’ve always been meaning to look into'
+          { text: 'Baking, a new art form, creative writing, a craft, photography or learning a new musical instrument', tag: 'H' },
+          { text: 'Practice my debating and influencing skills or try my hand at public speaking', tag: 'L' },
+          { text: 'Voluntary work or team activity where I can work with and support others', tag: 'A' },
+          { text: 'I\'d love to learn a new sport, or try an outdoors activity', tag: 'F' },
+          { text: 'Develop my IT and/or budget management skills (e.g. learn a new software package or financial system)', tag: 'P' },
+          { text: 'Research that niche topic I\'ve always been meaning to look into', tag: 'S' }
         ],
       },
       {
@@ -450,12 +451,12 @@ const sections: Section[] = [
         type: 'ranking',
         required: true,
         options: [
-          'Nothing too formal - I’m up for a surprise. A relaxed atmosphere where I can do stuff in my own time (e.g. daydream, listen to my music, write, draw etc.) would be ideal!',
-          'A city break where I can explore – the holiday’s not for relaxing - it’s for adventure',
-          'A resort, venue or hotel with social events and activities where I can people watch, mix and make new friends.',
-          'Somewhere outdoors – a rural area where I can hike and do other physical activities',
-          'Somewhere I’ve been before which is safe and guaranteed to be great. Otherwise, I’d plan the whole trip – I need to make sure everything’s set up in advance',
-          'Somewhere new where I can learn about the culture, history and language'
+          { text: 'Nothing too formal - I\'m up for a surprise. A relaxed atmosphere where I can do stuff in my own time (e.g. daydream, listen to my music, write, draw etc.) would be ideal!', tag: 'H' },
+          { text: 'A city break where I can explore – the holiday\'s not for relaxing - it\'s for adventure', tag: 'L' },
+          { text: 'A resort, venue or hotel with social events and activities where I can people watch, mix and make new friends.', tag: 'A' },
+          { text: 'Somewhere outdoors – a rural area where I can hike and do other physical activities', tag: 'F' },
+          { text: 'Somewhere I\'ve been before which is safe and guaranteed to be great. Otherwise, I\'d plan the whole trip – I need to make sure everything\'s set up in advance', tag: 'P' },
+          { text: 'Somewhere new where I can learn about the culture, history and language', tag: 'S' }
         ],
       },
       {
@@ -465,12 +466,12 @@ const sections: Section[] = [
         type: 'ranking',
         required: true,
         options: [
-          'A show where I can watch people create things or showcase their talents (e.g. Interior Design Challenge, Young Musician of the Year)',
-          'Business shows where I can watch how the professionals work (e.g. Dragon’s Den, The Apprentice, Start Up)',
-          'A reality or game show where I can watch people solve problems, build relationships and work as a team  (e.g. The Crystal Maze, Big Brother, Traitors, The Mole)',
-          'Wildlife, nature or survival skills documentaries where I can see people work outdoors or with plants and animals (e.g. Blue Planet, Life on Earth, The Farm)',
-          'An investigative programme about consumers rights and illegal activity (e.g. Watchdog, Scam Interceptors, Crimewatch)',
-          'A quiz show where I can test my knowledge (e.g. Mastermind, University Challenge)'
+          { text: 'A show where I can watch people create things or showcase their talents (e.g. Interior Design Challenge, Young Musician of the Year)', tag: 'H' },
+          { text: 'Business shows where I can watch how the professionals work (e.g. Dragon\'s Den, The Apprentice, Start Up)', tag: 'L' },
+          { text: 'A reality or game show where I can watch people solve problems, build relationships and work as a team  (e.g. The Crystal Maze, Big Brother, Traitors, The Mole)', tag: 'A' },
+          { text: 'Wildlife, nature or survival skills documentaries where I can see people work outdoors or with plants and animals (e.g. Blue Planet, Life on Earth, The Farm)', tag: 'F' },
+          { text: 'An investigative programme about consumers rights and illegal activity (e.g. Watchdog, Scam Interceptors, Crimewatch)', tag: 'P' },
+          { text: 'A quiz show where I can test my knowledge (e.g. Mastermind, University Challenge)', tag: 'S' }
         ],
       },
       {
@@ -480,12 +481,12 @@ const sections: Section[] = [
         type: 'ranking',
         required: true,
         options: [
-          'A workplace that is has a more informal, flexible and less conventional or creative atmosphere - I work best outside of a set structure',
-          'Somewhere that allows me to demonstrate my leadership, selling, and management skills',
-          'A friendly and open environment where I can interact with others and/or work as a team',
-          'A workplace that values technical or practical skills and/or where I can go outside and am not stuck in an office all day',
-          'I need a structured place with clear expectations and standards where I can use my organisational skills',
-          'Somewhere which values analytical skills and intellect which allows me to work independently to research and solve problems.'
+          { text: 'A workplace that is has a more informal, flexible and less conventional or creative atmosphere - I work best outside of a set structure', tag: 'H' },
+          { text: 'Somewhere that allows me to demonstrate my leadership, selling, and management skills', tag: 'L' },
+          { text: 'A friendly and open environment where I can interact with others and/or work as a team', tag: 'A' },
+          { text: 'A workplace that values technical or practical skills and/or where I can go outside and am not stuck in an office all day', tag: 'F' },
+          { text: 'I need a structured place with clear expectations and standards where I can use my organisational skills', tag: 'P' },
+          { text: 'Somewhere which values analytical skills and intellect which allows me to work independently to research and solve problems.', tag: 'S' }
         ],
       },
       {
@@ -495,12 +496,12 @@ const sections: Section[] = [
         type: 'ranking',
         required: true,
         options: [
-          'Designer or Artist (including actor, musician, writer/author)',
-          'Businessperson, entrepreneur or sales/marketing director',
-          'Healthcare, public sector or charity worker',
-          'Professional sportsperson, armed forces or police officer',
-          'Lawyer, accountant or IT professional',
-          'Researcher in your chosen field'
+          { text: 'Designer or Artist (including actor, musician, writer/author)', tag: 'H' },
+          { text: 'Businessperson, entrepreneur or sales/marketing director', tag: 'L' },
+          { text: 'Healthcare, public sector or charity worker', tag: 'A' },
+          { text: 'Professional sportsperson, armed forces or police officer', tag: 'F' },
+          { text: 'Lawyer, accountant or IT professional', tag: 'P' },
+          { text: 'Researcher in your chosen field', tag: 'S' }
         ],
       },
       {
@@ -537,19 +538,19 @@ const sections: Section[] = [
       },
       {
         id: 'Q32_5',
-        text: 'I\'m better with people than I am with practical tasks and equipment',
-        description: 'Choose one box to tick that you agree with most. Try and avoid the neutral option if possible.',
-        type: 'radio-with-other',
+        text: "I'm better with people than I am with practical tasks and equipment",
+        description: "Choose one box to tick that you agree with most. Try and avoid the neutral option if possible.",
+        type: "radio-with-other",
         required: true,
-        options: ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'],
+        options: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"],
       },
       {
         id: 'Q32_6',
-        text: 'I\'d rather follow instructions than give them',
-        description: 'Choose one box to tick that you agree with most. Try and avoid the neutral option if possible.',
-        type: 'radio-with-other',
+        text: "I'd rather follow instructions than give them",
+        description: "Choose one box to tick that you agree with most. Try and avoid the neutral option if possible.",
+        type: "radio-with-other",
         required: true,
-        options: ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'],
+        options: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"],
       },
     ],
   },
@@ -563,23 +564,23 @@ const sections: Section[] = [
         description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
         type: 'radio-with-other',
         required: true,
-        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+        options: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"],
       },
       {
         id: 'Q33_2',
-        text: 'I\'m often the person my friends rely on to organise things (PJ)',
-        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
-        type: 'radio-with-other',
+        text: "I'm often the person my friends rely on to organise things (PJ)",
+        description: "Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.",
+        type: "radio-with-other",
         required: true,
-        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+        options: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"],
       },
       {
         id: 'Q33_3',
-        text: 'After a busy week, I\'d rather relax by spending time with my friends than on my own (IE)',
-        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
-        type: 'radio-with-other',
+        text: "After a busy week, I'd rather relax by spending time with my friends than on my own (IE)",
+        description: "Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.",
+        type: "radio-with-other",
         required: true,
-        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+        options: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"],
       },
       {
         id: 'Q33_4',
@@ -587,15 +588,15 @@ const sections: Section[] = [
         description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
         type: 'radio-with-other',
         required: true,
-        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+        options: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"],
       },
       {
         id: 'Q33_5',
-        text: 'It\'s important to show kindness and respect for people, even if you don\'t like or understand them (TF)',
-        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
-        type: 'radio-with-other',
+        text: "It's important to show kindness and respect for people, even if you don't like or understand them (TF)",
+        description: "Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.",
+        type: "radio-with-other",
         required: true,
-        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+        options: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"],
       },
       {
         id: 'Q33_6',
@@ -603,23 +604,23 @@ const sections: Section[] = [
         description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
         type: 'radio-with-other',
         required: true,
-        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+        options: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"],
       },
       {
         id: 'Q33_7',
-        text: 'I am more concerned about fairness over people\'s feelings (FT)',
-        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
-        type: 'radio-with-other',
+        text: "I am more concerned about fairness over people's feelings (FT)",
+        description: "Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.",
+        type: "radio-with-other",
         required: true,
-        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+        options: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"],
       },
       {
         id: 'Q33_8',
-        text: 'I think it\'s better to be imaginative than practical (SN)',
-        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
-        type: 'radio-with-other',
+        text: "I think it's better to be imaginative than practical (SN)",
+        description: "Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.",
+        type: "radio-with-other",
         required: true,
-        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+        options: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"],
       },
       {
         id: 'Q33_9',
@@ -627,7 +628,7 @@ const sections: Section[] = [
         description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
         type: 'radio-with-other',
         required: true,
-        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+        options: ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'],
       },
       {
         id: 'Q33_10',
@@ -635,15 +636,15 @@ const sections: Section[] = [
         description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
         type: 'radio-with-other',
         required: true,
-        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+        options: ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'],
       },
       {
         id: 'Q33_11',
-        text: 'I dislike it when fiction writers don\'t say exactly what they mean (NS)',
-        description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
-        type: 'radio-with-other',
+        text: "I dislike it when fiction writers don't say exactly what they mean (NS)",
+        description: "Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.",
+        type: "radio-with-other",
         required: true,
-        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+        options: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"],
       },
       {
         id: 'Q33_12',
@@ -651,7 +652,7 @@ const sections: Section[] = [
         description: 'Choose one box to tick to rate your agreement with each statement. Avoid using the neutral/middle option if possible.',
         type: 'radio-with-other',
         required: true,
-        options: ['Strongly disagree', 'Disagree', 'Agree', 'Strongly agree'],
+        options: ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'],
       },
     ],
   },
@@ -719,14 +720,14 @@ You have been asked to make some suggestions to solve the problem. List as many 
       {
         id: 'Q36',
         text: 'Please read the following problem',
-        description: 'Due to the increasing popularity of summer music festivals since Covid, last year “Harmony Fest” launched in a brand-new location following this gap in the market. However, many of the attendees complained about how bad it was, and this year, ticket sales are down by 40%. ',
+        description: 'Due to the increasing popularity of summer music festivals since Covid, last year "Harmony Fest" launched in a brand-new location following this gap in the market. However, many of the attendees complained about how bad it was, and this year, ticket sales are down by 40%. ',
         type: 'text',
         required: true,
       },
       {
         id: 'Q37',
         text: 'Please read the following problem',
-        description: 'One of your relatives owns a chain of successful baker’s shops selling traditional baked goods and sandwiches. The most recent shop they opened has proved to be a disaster. ',
+        description: "One of your relatives owns a chain of successful baker's shops selling traditional baked goods and sandwiches. The most recent shop they opened has proved to be a disaster.",
         type: 'text',
         required: true,
       },
@@ -780,7 +781,7 @@ You have been asked to make some suggestions to solve the problem. List as many 
       },
       {
         id: 'Q44',
-        text: 'What are your parent(s)\' current or previous careers/occupations?',
+        text: "What are your parent(s)' current or previous careers/occupations?",
         description: 'And has this had any impact on you?',
         type: 'text',
         required: true,
@@ -809,12 +810,12 @@ function SortableItem({ id, children, index }: { id: string; children: React.Rea
       style={style}
       {...attributes}
       {...listeners}
-      className="flex items-center gap-2 bg-white p-3 rounded-lg shadow-sm cursor-move"
+      className="flex items-center gap-2 bg-white p-3 rounded-lg shadow-sm cursor-move hover:bg-gray-50 active:bg-gray-100 select-none touch-none"
     >
       <span className="flex items-center justify-center w-8 h-8 bg-primary text-white rounded-full font-bold">
         {index + 1}
       </span>
-      <GripVertical className="h-4 w-4 text-gray-400" />
+      <GripVertical className="h-4 w-4 text-gray-400 cursor-move" />
       <span className="flex-1">{children}</span>
     </div>
   );
@@ -845,7 +846,12 @@ export default function Home() {
   const currentQuestionNumber = questionsBeforeCurrentSection + currentQuestionIndex + 1;
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 1,
+        tolerance: 5,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -961,36 +967,76 @@ export default function Home() {
   };
   
   const submitSurvey = useCallback(async () => {
-    const userString = localStorage.getItem('currentUser');
-  
-    if (!userString) {
-      toast({
-        title: "Error",
-        description: "User not logged in",
-      });
-      return;
-    }
-  
-    const user = JSON.parse(userString);
-  
-    const { error } = await supabase.from('survey_results').insert([
-      {
-        user_id: user.id,
-        answers: answers,
-        created_at: new Date().toISOString()
+    try {
+      // 1. 检查用户
+      const userString = localStorage.getItem('currentUser');
+      if (!userString) {
+        toast({
+          title: "错误",
+          description: "用户未登录"
+        });
+        return;
       }
-    ]);
-  
-    if (error) {
-      console.error('Failed to save responses:', error);
+      
+      // 2. 解析用户数据
+      let user;
+      try {
+        user = JSON.parse(userString);
+        console.log("用户数据:", user);
+      } catch (e) {
+        console.error("解析用户数据失败:", e);
+        toast({
+          title: "错误",
+          description: "用户数据无效"
+        });
+        return;
+      }
+      
+      // 3. 计算得分
+      const scores = calculateScores(answers);
+      console.log("计算得分:", scores);
+      
+      // 4. 准备提交的数据
+      const actualData = {
+        user_id: user.id,
+        answers: JSON.stringify(answers),
+        scores: JSON.stringify(scores),
+        created_at: new Date().toISOString()
+      };
+      
+      console.log("准备提交数据:", actualData);
+      
+      // 5. 执行插入操作
+      try {
+        const result = await supabase
+          .from('survey_results')
+          .insert([actualData]);
+          
+        if (result.error) {
+          console.error("数据插入错误:", result.error);
+          toast({
+            title: "数据保存失败",
+            description: `错误信息: ${result.error.message}`
+          });
+          return;
+        }
+        
+        console.log("数据插入成功:", result.data);
+        handleSubmit();
+      } catch (dbError) {
+        console.error("执行数据库操作时发生异常:", dbError);
+        toast({
+          title: "数据库操作异常",
+          description: dbError instanceof Error ? dbError.message : "未知错误"
+        });
+      }
+    } catch (e) {
+      console.error("提交过程中发生错误:", e);
       toast({
-        title: "Error",
-        description: "Failed to submit responses. Please try again.",
+        title: "提交错误",
+        description: e instanceof Error ? e.message : "未知错误"
       });
-      return;
     }
-  
-    handleSubmit();
   }, [answers, toast]);
 
   useEffect(() => {
@@ -1015,22 +1061,51 @@ export default function Home() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
-    if (over && active.id !== over.id) {
-      const currentOptions = JSON.parse(answers[currentQuestion.id]?.value || JSON.stringify(currentQuestion.options || []));
-      const oldIndex = currentOptions.findIndex(
-        (option: string) => option === active.id
+    if (over && active.id !== over.id && currentQuestion.options) {
+      const currentOptions = currentQuestion.options;
+      const oldIndex = currentOptions.findIndex(opt => 
+        (typeof opt === "string" ? opt : opt.tag) === active.id
       );
-      const newIndex = currentOptions.findIndex(
-        (option: string) => option === over.id
+      const newIndex = currentOptions.findIndex(opt => 
+        (typeof opt === "string" ? opt : opt.tag) === over.id
       );
 
-      const newOptions = arrayMove(currentOptions, oldIndex, newIndex);
-      setAnswers((prev) => ({
-        ...prev,
-        [currentQuestion.id]: {
-          value: JSON.stringify(newOptions),
-        },
-      }));
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newOptions = arrayMove(currentOptions, oldIndex, newIndex);
+        const newOrder = newOptions.map(opt => 
+          typeof opt === "string" ? opt : opt.tag
+        );
+        
+        // 更新答案
+        setAnswers(prev => ({
+          ...prev,
+          [currentQuestion.id]: {
+            value: JSON.stringify(newOrder)
+          }
+        }));
+
+        // 更新当前问题的选项顺序
+        const updatedSections = sections.map(section => {
+          if (section.questions.some(q => q.id === currentQuestion.id)) {
+            return {
+              ...section,
+              questions: section.questions.map(q => {
+                if (q.id === currentQuestion.id) {
+                  return {
+                    ...q,
+                    options: newOptions
+                  };
+                }
+                return q;
+              })
+            };
+          }
+          return section;
+        });
+        
+        // 更新问题列表
+        sections.splice(0, sections.length, ...updatedSections);
+      }
     }
   };
 
@@ -1074,18 +1149,24 @@ export default function Home() {
                               onDragEnd={handleDragEnd}
                             >
                               <div className="space-y-2">
-                            <SortableContext
-                                  items={JSON.parse(answers[currentQuestion.id]?.value || JSON.stringify(currentQuestion.options || []))}
-                              strategy={verticalListSortingStrategy}
-                            >
-                                  {JSON.parse(answers[currentQuestion.id]?.value || JSON.stringify(currentQuestion.options || [])).map((option: string, index: number) => (
-                                    <SortableItem key={option} id={option} index={index}>
-                                      {option}
-                                    </SortableItem>
-                                  ))}
-                            </SortableContext>
+                                <SortableContext
+                                  items={(currentQuestion.options || []).map(opt => 
+                                    typeof opt === "string" ? opt : opt.tag
+                                  )}
+                                  strategy={verticalListSortingStrategy}
+                                >
+                                  {(currentQuestion.options || []).map((option, index) => {
+                                    const tag = typeof option === "string" ? option : option.tag;
+                                    const text = typeof option === "string" ? option : option.text;
+                                    return (
+                                      <SortableItem key={tag} id={tag} index={index}>
+                                        {text}
+                                      </SortableItem>
+                                    );
+                                  })}
+                                </SortableContext>
                               </div>
-                          </DndContext>
+                            </DndContext>
                           ) : currentQuestion.type === 'radio-with-other' ? (
                             <div className="space-y-4">
                               <RadioGroup
@@ -1099,17 +1180,21 @@ export default function Home() {
                                 value={answers[currentQuestion.id]?.value || ''}
                                 className="space-y-2"
                               >
-                                {currentQuestion.options?.map((option) => (
-                                  <div key={option} className="flex items-center space-x-2">
-                                    <RadioGroupItem value={option} id={`${currentQuestion.id}-${option}`} />
-                                    <label 
-                                      htmlFor={`${currentQuestion.id}-${option}`}
-                                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                    >
-                                      {option}
-                                    </label>
-                                  </div>
-                                ))}
+                                {currentQuestion.options?.map((option) => {
+                                  const optionText = typeof option === 'string' ? option : option.text;
+                                  const optionValue = typeof option === 'string' ? option : option.tag;
+                                  return (
+                                    <div key={optionValue} className="flex items-center space-x-2">
+                                      <RadioGroupItem value={optionValue} id={`${currentQuestion.id}-${optionValue}`} />
+                                      <label 
+                                        htmlFor={`${currentQuestion.id}-${optionValue}`}
+                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                      >
+                                        {optionText}
+                                      </label>
+                                    </div>
+                                  );
+                                })}
                               </RadioGroup>
                               {answers[currentQuestion.id]?.value === 'Other' && (
                                 <Input
