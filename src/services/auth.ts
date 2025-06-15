@@ -1,39 +1,39 @@
 /**
- * Represents user credentials for authentication.
+ * 用户凭证类型定义，用于身份认证。
  */
 export interface Credentials {
   /**
-   * The username of the user.
+   * 用户名
    */
   username: string;
   /**
-   * The password of the user.
+   * 用户密码（加密或摘要）
    */
   passwordDigest: string;
 }
 
 /**
- * Represents the result of an authentication attempt.
+ * 认证结果类型定义。
  */
 export interface AuthResult {
   /**
-   * Indicates whether the authentication was successful.
+   * 是否认证成功
    */
   success: boolean;
   /**
-   * An optional error message if authentication failed.
+   * 失败时的错误信息（可选）
    */
   error?: string;
 }
 
 /**
- * Asynchronously authenticates a user with the provided credentials.
+ * 异步认证函数，根据传入的凭证判断用户是否合法。
  *
- * @param credentials The user's credentials.
- * @returns A promise that resolves to an AuthResult indicating the success or failure of the authentication.
+ * @param credentials 用户凭证
+ * @returns Promise<AuthResult> 返回认证结果
  */
 export async function authenticate(credentials: Credentials): Promise<AuthResult> {
-  // TODO: Implement this by calling an API.
+  // TODO: 实际项目中应通过 API 校验，这里为演示做本地判断。
   if (credentials.username === process.env.ADMIN_USERNAME && credentials.passwordDigest === process.env.ADMIN_PASSWORD_DIGEST) {
     return {
       success: true,
@@ -41,7 +41,7 @@ export async function authenticate(credentials: Credentials): Promise<AuthResult
   } else {
     return {
       success: false,
-      error: 'Invalid credentials',
+      error: 'Invalid credentials', // 认证失败
     };
   }
 }

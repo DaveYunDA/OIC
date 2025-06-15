@@ -1,24 +1,24 @@
 // 评分系统类型定义
 export interface RankingOption {
-  text: string;
-  tag: string;
+  text: string; // 选项文本
+  tag: string;  // 选项标签（用于标识）
 }
 
 export interface ScoringMap {
-  disagree: string;
-  agree: string;
+  disagree: string; // 不同意时的映射标签
+  agree: string;    // 同意时的映射标签
 }
 
-// Likert 量表分值映射
+// Likert 量表分值映射（常用于心理测量问卷）
 export const LikertScores = {
-  "Strongly disagree": 2,
-  "Disagree": 1,
-  "Neutral": 0,
-  "Agree": 1,
-  "Strongly agree": 2
+  "Strongly disagree": 2, // 非常不同意
+  "Disagree": 1,          // 不同意
+  "Neutral": 0,           // 中立
+  "Agree": 1,             // 同意
+  "Strongly agree": 2     // 非常同意
 } as const;
 
-// Q32 题组维度映射
+// Q32 题组维度映射（用于特定题目的分数归类）
 export const Q32ScoringMap: Record<string, ScoringMap> = {
   Q32_1: { disagree: "A", agree: "R" },
   Q32_2: { disagree: "C", agree: "A" },
@@ -28,7 +28,7 @@ export const Q32ScoringMap: Record<string, ScoringMap> = {
   Q32_6: { disagree: "E", agree: "C" },
 };
 
-// Q33 题组维度映射
+// Q33 题组维度映射（用于特定题目的分数归类）
 export const Q33ScoringMap: Record<string, ScoringMap> = {
   Q33_1: { disagree: "E", agree: "I" },
   Q33_2: { disagree: "P", agree: "J" },
@@ -46,17 +46,17 @@ export const Q33ScoringMap: Record<string, ScoringMap> = {
 
 // 用户答案类型
 export interface UserAnswer {
-  value: string;
-  otherValue?: string;
+  value: string;      // 用户选择的值
+  otherValue?: string; // 其他补充内容（如“其他”选项填写）
 }
 
 export interface UserAnswers {
-  [key: string]: UserAnswer;
+  [key: string]: UserAnswer; // 题号到答案的映射
 }
 
 // 评分结果类型
 export interface ScoringResult {
-  [key: string]: number | Record<string, number>;
+  [key: string]: number | Record<string, number>; // 维度分数或嵌套分数
 }
 
 /**
@@ -118,4 +118,4 @@ export function calculateScores(answers: UserAnswers): ScoringResult {
     Q32: q32Results,
     Q33: q33Results
   };
-} 
+}
