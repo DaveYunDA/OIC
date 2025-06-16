@@ -31,9 +31,16 @@ export default function LoginPage() {
       return;
     }
 
-    // 登录成功，保存用户信息
+    // 登录成功，保存用户信息和认证令牌
     localStorage.setItem('currentUser', JSON.stringify({
       id: data.id,
+      username: data.username
+    }));
+    
+    // 创建认证令牌（包含时间戳）
+    localStorage.setItem('authToken', JSON.stringify({
+      timestamp: Date.now(),
+      userId: data.id,
       username: data.username
     }));
 

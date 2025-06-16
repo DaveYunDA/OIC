@@ -935,6 +935,7 @@ function SortableItem({ id, children, index }: { id: string; children: React.Rea
 export default function Home() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true); // 新增：认证加载状态
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [submitted, setSubmitted] = useState(false);
@@ -1028,18 +1029,52 @@ export default function Home() {
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
-  );
-
-  useEffect(() => {
+  );  useEffect(() => {
     const initializeUser = async () => {
       const user = localStorage.getItem('currentUser');
-      if (!user) {
+      const authToken = localStorage.getItem('authToken');
+      
+      // 严格的认证检查
+      if (!user || !authToken) {
+        console.log("缺少用户信息或认证令牌，跳转到登录页");
+        localStorage.clear(); // 清除所有可能的缓存
+        setIsAuthenticated(false);
+        setIsAuthLoading(false);
         router.push('/login');
         return;
       }
       
       try {
         const userData = JSON.parse(user);
+        
+        // 验证用户数据完整性
+        if (!userData.id || !userData.username) {
+          throw new Error("用户数据不完整");
+        }
+        
+        // 验证认证令牌是否有效（简单的时间戳检查）
+        const tokenData = JSON.parse(authToken);
+        const currentTime = Date.now();
+        const tokenTime = tokenData.timestamp;
+        const sessionTimeout = 24 * 60 * 60 * 1000; // 24小时超时
+        
+        if (currentTime - tokenTime > sessionTimeout) {
+          throw new Error("会话已过期");
+        }
+        
+        // 验证用户是否仍然存在于数据库中
+        const { data: userExists, error } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', userData.id)
+          .eq('username', userData.username)
+          .single();
+          
+        if (error || !userExists) {
+          throw new Error("用户验证失败");
+        }
+        
+        console.log("用户认证成功:", userData.username);
         setIsAuthenticated(true);
         
         // 尝试恢复进度
@@ -1050,8 +1085,16 @@ export default function Home() {
           console.log("没有找到保存的进度，从第一题开始");
         }
       } catch (e) {
-        console.error("初始化用户数据失败:", e);
+        console.error("认证失败:", e);
+        // 清除所有本地存储的认证信息
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('surveyDraft');
+        localStorage.removeItem('submitted');
+        setIsAuthenticated(false);
         router.push('/login');
+      } finally {
+        setIsAuthLoading(false); // 认证检查完成
       }
     };
 
@@ -1439,13 +1482,20 @@ export default function Home() {
           description: "Your progress has been saved successfully"
         });
         
-        // 再延迟一下让用户看到成功消息
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // 保存成功后清除认证状态并跳转到登录页
+        // 清除认证状态
         localStorage.removeItem('authToken');
+        localStorage.removeItem('currentUser');
         setIsAuthenticated(false);
-        router.push('/login');
+        
+        // 使用专门的退出确认页面替代直接跳转
+        setTimeout(() => {
+          try {
+            router.push('/save-exit');
+          } catch (error) {
+            console.error('Router push failed, using window.location:', error);
+            window.location.href = '/save-exit';
+          }
+        }, 1000);
       } else {
         console.error("保存失败:", result.error);
         toast({
@@ -1855,9 +1905,21 @@ export default function Home() {
   useEffect(() => {
     if (submitted) {
       router.push('/thank-you');
-    }
-  }, [submitted, router]); 
+    }  }, [submitted, router]); 
   
+  // 认证检查期间显示加载状态
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // 未认证或缺少问题数据时不显示任何内容
   if (!isAuthenticated || !currentQuestion) {
     return null;
   }
